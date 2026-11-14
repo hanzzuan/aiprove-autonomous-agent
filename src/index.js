@@ -111,7 +111,23 @@ async function apiText(path) {
 }
 
 // --- Auth: challenge -> show what is signed -> sign -> verify ---
+// If a session token was already obtained by the operator signing the
+// challenge with their own wallet (work/token.json), use it directly:
+// the agent never holds the operator's private key.
 async function authenticate() {
+  try {
+    const tokenPath = join(WORK_DIR, "token.json");
+    if (existsSync(tokenPath)) {
+      const saved = JSON.parse(readFileSync(tokenPath, "utf8"));
+      if (saved.token && saved.address) {
+        SECRET_VALUES.push(saved.token);
+        log(`Authenticated with operator-signed session token. Token prefix: ${shortToken(saved.token)} expiresAt=${saved.expiresAt ?? "n/a"}`);
+        return { address: saved.address, token: saved.token, expiresAt: saved.expiresAt };
+      }
+    }
+  } catch (e) {
+    log(`Saved token unreadable, falling back to key auth: ${redact(e.message)}`);
+  }
   const key = process.env.AGENT_PRIVATE_KEY;
   if (!key) throw new Error("AGENT_PRIVATE_KEY is not set. Set it in env/.env for live mode, or use --dry-run.");
   SECRET_VALUES.push(key);
